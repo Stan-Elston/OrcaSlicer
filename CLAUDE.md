@@ -6,6 +6,31 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 OrcaSlicer is an open-source 3D slicer application forked from Bambu Studio, built using C++ with wxWidgets for the GUI and CMake as the build system. The project uses a modular architecture with separate libraries for core slicing functionality, GUI components, and platform-specific code.
 
+## Quick Reference
+
+Common commands for daily development:
+
+```bash
+# Build on your platform
+./build_release_vs2022.bat           # Windows
+./build_release_macos.sh             # macOS
+./build_linux.sh -dsi                # Linux
+
+# Run tests
+cd build && ctest --output-on-failure
+cd build && ./tests/libslic3r/libslic3r_tests --order rand --warn NoAssertions
+
+# Format code
+clang-format -i <file>
+
+# Check profiles
+python scripts/orca_extra_profile_check.py
+
+# Update translations
+./scripts/run_gettext.sh             # Linux/macOS
+scripts\run_gettext.bat              # Windows
+```
+
 ## Build Commands
 
 ### Building on Windows
@@ -82,7 +107,7 @@ build_release_vs2022.bat slicer
 - Linux builds use Ninja generator
 
 ### Testing
-Tests are located in the `tests/` directory and use the Catch2 testing framework. Test structure:
+Tests are located in the `tests/` directory and use the Catch2 v2 testing framework. Test structure:
 - `tests/libslic3r/` - Core library tests (21 test files)
   - Geometry processing, algorithms, file formats (STL, 3MF, AMF)
   - Polygon operations, clipper utilities, Voronoi diagrams
@@ -105,14 +130,18 @@ Run tests with verbose output:
 cd build && ctest --output-on-failure
 ```
 
-Run individual test suites:
+Run individual test suites (recommended for development):
 ```bash
-# From build directory
-ctest --test-dir ./tests/libslic3r/libslic3r_tests
-ctest --test-dir ./tests/fff_print/fff_print_tests
-ctest --test-dir ./tests/sla_print/sla_print_tests
-# and so on
+# From build directory - always use random order for reliable tests
+cd build && ./tests/libslic3r/libslic3r_tests --order rand --warn NoAssertions
+cd build && ./tests/fff_print/fff_print_tests --order rand --warn NoAssertions
+
+# Filter by tags or patterns
+cd build && ./tests/libslic3r/libslic3r_tests "[Geometry]" --order rand
+cd build && ./tests/libslic3r/libslic3r_tests "*polygon*" --order rand
 ```
+
+**Important**: See `tests/CLAUDE.md` for comprehensive testing guide including critical rules about thread safety, floating-point comparisons, and Catch2 best practices.
 
 ## Architecture
 
@@ -132,7 +161,14 @@ ctest --test-dir ./tests/sla_print/sla_print_tests
 - **src/slic3r/**: Main application framework and GUI
   - GUI application built with wxWidgets
   - Integration between libslic3r core and user interface
-  - Located in `src/slic3r/GUI/` (not shown in this directory but exists)
+  - Main GUI components in `src/slic3r/GUI/`:
+    - 3D viewport and bed visualization (3DScene.cpp, 3DBed.cpp)
+    - AMS (Automated Material System) widgets and controls
+    - Plater (main workspace for object manipulation)
+    - Print and material settings dialogs
+    - Network printing interface (Bambu Lab, Klipper, OctoPrint integration)
+  - Configuration management in `src/slic3r/Config/`
+  - Platform utilities in `src/slic3r/Utils/`
 
 ### Key Algorithmic Components
 - **Arachne Wall Generation**: Variable-width perimeter generation using skeletal trapezoidation
@@ -191,9 +227,13 @@ ctest --test-dir ./tests/sla_print/sla_print_tests
 ### Code Style and Standards
 - **C++17 standard** with selective C++20 features
 - **Naming conventions**: PascalCase for classes, snake_case for functions/variables
-- **Header guards**: Use `#pragma once` 
+- **Header guards**: Use `#pragma once`
 - **Memory management**: Prefer smart pointers, RAII patterns
 - **Thread safety**: Use TBB for parallelization, be mindful of shared state
+- **Code formatting**: Uses `.clang-format` with 4-space indents, 140-column limit
+  - Run `clang-format -i <file>` before committing
+  - CMake target available when LLVM tools are on PATH: `make clang-format`
+  - Key settings: aligned assignments/declarations, custom brace wrapping, pointer alignment left
 
 ### Common Development Tasks
 
@@ -227,9 +267,34 @@ ctest --test-dir ./tests/sla_print/sla_print_tests
 
 ### Dependencies and Build System
 - **CMake-based** with separate dependency building phase
-- **Dependencies** built once in `deps/build/`, then linked to main application  
+- **Dependencies** built once in `deps/build/`, then linked to main application
 - **Cross-platform** considerations important for all changes
 - **Resource files** embedded at build time, platform-specific handling
+- **Version management**: Version defined in `version.inc` (e.g., `2.3.2-dev`)
+  - Git commit hash automatically embedded during CI builds
+  - Separate SLIC3R_VERSION for compatibility tracking
+
+### CI/CD and Automation
+- **GitHub Actions** workflows in `.github/workflows/`:
+  - `build_all.yml` - Main build workflow for all platforms (triggered on main/release branches)
+  - `build_deps.yml` - Separate dependency building
+  - `check_profiles.yml` - Validates printer/filament profiles
+  - `check_locale.yml` - Checks translation files
+  - `doxygen-docs.yml` - Generates code documentation
+- **Automated checks**: Profile validation, locale completeness, shell script linting
+- **Nightly builds**: Scheduled daily builds at 1 AM Singapore time (UTC+8)
+- **Manual dispatch**: Workflows support manual triggering with options
+
+### Development Scripts and Utilities
+- **Profile management**: `scripts/generate_presets_vendors.py` - Generates vendor preset files
+- **Profile validation**: `scripts/orca_extra_profile_check.py` - Validates profile JSON syntax and structure
+- **Filament library**: `scripts/orca_filament_lib.py` - Filament profile utilities
+- **Image optimization**: `scripts/optimize_cover_images.py` - Compresses and optimizes cover images
+- **Localization**:
+  - `scripts/run_gettext.sh` / `scripts/run_gettext.bat` - Extracts translatable strings
+  - `scripts/HintsToPot.py` - Processes UI hints for translation
+- **Packaging**: `scripts/pack_profiles.sh` - Packages profiles for distribution
+- **Docker support**: `scripts/DockerBuild.sh` and `scripts/DockerRun.sh` - Reproducible container builds
 
 ### Performance Considerations
 - **Slicing algorithms** are CPU-intensive, profile before optimizing
@@ -257,3 +322,113 @@ ctest --test-dir ./tests/sla_print/sla_print_tests
 - **Performance benchmarks** help catch performance regressions
 - **Memory leak** detection important for long-running GUI application
 - **Cross-platform** testing required before releases
+
+## Known Build Issues
+
+### Windows - "v145 build tools cannot be found" Error (VS2022)
+
+**Problem**: Build fails with error `The build tools for v145 (Platform Toolset = 'v145') cannot be found.`
+
+**Important**: This error message is misleading! The "v145" toolset doesn't actually exist in standard Visual Studio releases. The real issue is an incomplete or missing MSVC toolset installation.
+
+**Root Cause**:
+Multiple MSVC toolsets can be installed side-by-side in Visual Studio 2022, typically in:
+- `C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.42.xxxxx\`
+- `C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.xxxxx\`
+
+The problem occurs when:
+1. An older toolset (e.g., 14.42) is installed but **missing x64 runtime libraries** (MSVCRTD.lib, LIBCMT.lib, etc.)
+2. CMake generates projects using the incomplete toolset
+3. Nested dependency builds (OpenCV, Boost, etc.) fail with linker errors like:
+   - `LINK : fatal error LNK1104: cannot open file 'MSVCRTD.lib'`
+   - `LINK : fatal error LNK1104: cannot open file 'LIBCMT.lib'`
+
+**Verification**:
+Check which toolsets are installed and if they have x64 libraries:
+```powershell
+# List installed toolsets
+ls "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\"
+
+# Check if x64 libraries exist for each version
+ls "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\lib\x64\"
+```
+
+If a toolset directory lacks an `x64` subdirectory under `lib\`, it's incomplete.
+
+**Solutions**:
+
+*Option 1: Remove Incomplete Toolsets (Recommended)*
+1. Open **Visual Studio Installer**
+2. Click **"Modify"** on Visual Studio 2022
+3. Go to **"Individual Components"** tab
+4. Scroll to **"Compilers, build tools, and runtimes"**
+5. **Uncheck** any incomplete toolset versions (e.g., v14.42)
+6. Keep only the latest complete toolset checked
+7. Click **"Modify"** to apply changes
+
+*Option 2: Install Missing Components*
+1. In Visual Studio Installer → Individual Components
+2. Ensure these are checked:
+   - **MSVC v143 - VS 2022 C++ x64/x86 build tools (Latest)**
+   - **Windows 10 SDK** (any recent version)
+   - **C++ CMake tools for Windows**
+
+*Option 3: Force Specific Toolset Version*
+When configuring CMake, explicitly specify the working toolset:
+```bash
+cmake .. -G "Visual Studio 17 2022" -A x64 -T v143,version=14.44
+```
+
+**Installation via PowerShell** (requires Administrator):
+```powershell
+& "C:\Program Files (x86)\Microsoft Visual Studio\Installer\setup.exe" modify `
+  --installPath "C:\Program Files\Microsoft Visual Studio\2022\Community" `
+  --add Microsoft.VisualStudio.Workload.NativeDesktop `
+  --includeRecommended `
+  --quiet --norestart
+```
+
+**After Fixing**:
+Clean all build artifacts and rebuild:
+```bash
+cd C:\Users\<your-user>\source\repos\Stan-Elston\OrcaSlicer
+rm -rf deps/build build
+./build_release_vs2022.bat
+```
+
+### Windows - OpenCV Precompiled Header Conflict (VS2026/VS2022)
+
+**Problem**: Build fails with error `error C2653: 'cv': is not a class or namespace name` in ObjColorUtils.cpp/hpp
+
+**Root Cause**:
+- OrcaSlicer uses precompiled headers (PCH) that are force-included before all other headers
+- Two PCH files exist: `src/libslic3r/pchheader.hpp` and `src/slic3r/pchheader.hpp`
+- Neither PCH originally includes OpenCV headers (`opencv2/opencv.hpp`)
+- ObjColorUtils.hpp uses OpenCV types (cv::Mat, cv::Vec3f, etc.) but when included by other files, the PCH has already been processed without OpenCV definitions
+
+**Files Affected**:
+- `src/libslic3r/ObjColorUtils.hpp` - Only file that uses OpenCV in libslic3r
+- `src/libslic3r/ObjColorUtils.cpp`
+- `src/slic3r/GUI/ObjColorDialog.cpp` - GUI file that includes ObjColorUtils.hpp
+- `src/slic3r/GUI/Plater.cpp` - GUI file that includes ObjColorUtils.hpp
+
+**Solutions**:
+
+*Option 1: Disable Precompiled Headers (Recommended Workaround)*
+```bash
+cmake .. -G "Visual Studio 18 2026" -A x64 -DORCA_TOOLS=ON -DCMAKE_BUILD_TYPE=Release -DSLIC3R_PCH=OFF
+```
+This makes compilation slower but ensures all headers are processed correctly.
+
+*Option 2: Add OpenCV to Both Precompiled Headers (Not Working Reliably)*
+Edit both `src/libslic3r/pchheader.hpp` and `src/slic3r/pchheader.hpp` to add at the end:
+```cpp
+// OpenCV - must be at the end to avoid conflicts
+#include <opencv2/opencv.hpp>
+```
+Note: This approach has proven unreliable with Visual Studio's PCH caching. Even after clean rebuilds, the PCH may not be regenerated correctly.
+
+**Additional Notes**:
+- Boost version was also updated from 1.83.0 to 1.84.0 in CMakeLists.txt:579
+- Visual Studio 2026 (version 18) is very new and may have additional quirks
+- The build_release_vs.bat script auto-detects VS version correctly

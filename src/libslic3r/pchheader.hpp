@@ -130,3 +130,6 @@
 #include <Shiny/Shiny.h>
 
 #include <admesh/stl.h>
+
+// OpenCV - must be at the end to avoid conflicts
+#include <opencv2/opencv.hpp>

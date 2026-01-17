@@ -1,3 +1,11 @@
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 #include "ObjColorUtils.hpp"
 
 bool obj_color_deal_algo(std::vector<Slic3r::RGBA> & input_colors,

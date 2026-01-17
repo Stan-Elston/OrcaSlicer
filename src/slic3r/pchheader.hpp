@@ -198,4 +198,7 @@
 #include "GUI/format.hpp"
 #endif // _WIN32
 
+// OpenCV - must be at the end to avoid conflicts
+#include <opencv2/opencv.hpp>
+
 #endif // __cplusplus

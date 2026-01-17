@@ -627,4 +627,6 @@ endif()
 
 if (SLIC3R_PCH AND NOT SLIC3R_SYNTAXONLY)
     add_precompiled_header(libslic3r pchheader.hpp FORCEINCLUDE)
+    # Exclude ObjColorUtils.cpp from precompiled header since it uses OpenCV
+    set_source_files_properties(ObjColorUtils.cpp PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
 endif ()

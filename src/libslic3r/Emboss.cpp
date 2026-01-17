@@ -1,3 +1,4 @@
+#define NOMINMAX
 #include <numeric>
 #include "Emboss.hpp"
 #include <stdio.h>

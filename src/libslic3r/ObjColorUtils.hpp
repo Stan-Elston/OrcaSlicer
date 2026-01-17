@@ -1,8 +1,18 @@
 #pragma once
+
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
+#include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
+#include <opencv2/imgcodecs.hpp>
 #include <iostream>
 #include <ctime>
-
-#include "opencv2/opencv.hpp"
 #include "libslic3r/Color.hpp"
 class QuantKMeans
 {
